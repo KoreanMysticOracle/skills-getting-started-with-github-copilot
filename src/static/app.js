@@ -20,11 +20,32 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
+        // 참가자 목록 생성 (삭제 아이콘 포함)
+        let participantsHTML = "";
+        if (details.participants.length > 0) {
+          participantsHTML = `
+            <ul class="participants-list">
+              ${details.participants.map(email => `
+                <li>
+                  <span class="participant-email">${email}</span>
+                  <span class="delete-participant" title="Unregister" data-activity="${name}" data-email="${email}">&#128465;</span>
+                </li>
+              `).join("")}
+            </ul>
+          `;
+        } else {
+          participantsHTML = `<div class="no-participants">No participants yet.</div>`;
+        }
+
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <div class="participants-section">
+            <strong>Participants:</strong>
+            ${participantsHTML}
+          </div>
         `;
 
         activitiesList.appendChild(activityCard);
@@ -34,6 +55,28 @@ document.addEventListener("DOMContentLoaded", () => {
         option.value = name;
         option.textContent = name;
         activitySelect.appendChild(option);
+        // 삭제 아이콘 클릭 이벤트 위임
+        activityCard.addEventListener("click", async (e) => {
+          if (e.target.classList.contains("delete-participant")) {
+            const email = e.target.getAttribute("data-email");
+            const activity = e.target.getAttribute("data-activity");
+            if (confirm(`Unregister ${email} from ${activity}?`)) {
+              try {
+                const response = await fetch(`/activities/${encodeURIComponent(activity)}/unregister?email=${encodeURIComponent(email)}`, {
+                  method: "DELETE",
+                });
+                const result = await response.json();
+                if (response.ok) {
+                  fetchActivities();
+                } else {
+                  alert(result.detail || "Failed to unregister participant.");
+                }
+              } catch (error) {
+                alert("Error unregistering participant.");
+              }
+            }
+          }
+        });
       });
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
@@ -62,6 +105,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // 등록 성공 시 활동 목록 즉시 갱신
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
